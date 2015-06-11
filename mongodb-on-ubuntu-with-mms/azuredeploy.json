@@ -1,0 +1,320 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters" : {
+        "newStorageAccountName": {
+            "type": "string",
+            "metadata" : {
+              "description": "Unique  Name for the Storage Account where the Virtual Machine's disks will be placed"
+            }
+        },
+        "storageAccountType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS",
+            "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS"
+            ],
+            "metadata": {
+                "description": "Type of the storage account"
+            }
+        },
+        "vmDnsName": {
+                "type": "string",
+                "metadata" : {
+                  "description": "DNS name for the VM"
+                }
+        },
+        "numberOfInstances" : {
+          "type": "int",
+          "defaultValue": 3,
+          "metadata": {
+                 "description": "Number of VM instances to create, default is 3"
+            }
+        },
+        "availabilitySetName": {
+        "type": "string",
+        "metadata": {
+              "description": "Availability Set name for the VMs"
+                    }
+          },
+
+        "adminUserName": {
+            "type": "string",
+            "metadata" : {
+              "description": "Admin user name for the Virtual Machines"
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata" : {
+              "description": "Admin password for the Virtual Machines"
+            }
+        },
+
+        "imagePublisher": {
+           "type": "string",
+           "defaultValue": "Canonical",
+           "metadata": {
+                  "description": " Publisher for the OS image, the default is Canonical"
+             }
+         },
+
+         "imageOffer": {
+          "type": "string",
+             "defaultValue": "UbuntuServer",
+             "metadata": {
+               "description": "The name of the image offer. The default is Ubuntu"
+            }
+         },
+
+          "imageSKU": {
+          "type": "string",
+                   "defaultValue": "14.04.2-LTS",
+           "metadata": {
+                 "description": "Version of the image. The default is 14.04.2-LTS"
+             }
+         },
+        "location": {
+            "type": "string",
+            "defaultValue" : "West Europe",
+            "allowedValues": ["West Europe", "East US", "West US", "East Asia", "South East Asia"],
+            "metadata": {
+                "description": "Location of deployment"
+            }
+        },
+          "vmSize": {
+           "type": "string",
+             "defaultValue": "Standard_D1",
+                "metadata": {
+                 "description": "VM Size"
+             }
+         },
+         "mmsGroupId" : {
+           "type" : "string"
+         },
+         "mmsApiKey" : {
+           "type" : "string"
+         },
+         "dataFolder" : {
+           "type" : "string",
+           "defaultValue":"/mnt/data"
+         }
+    },
+    "variables": {
+        "vnetID":"[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+        "subnet1Ref" : "[concat(variables('vnetID'),'/subnets/',variables('subnet1Name'))]",
+        "vmName": "[parameters('vmDnsName')]",
+        "publicIPAddressName" : "mongoPublicIP",
+        "publicIPAddressType" : "Dynamic",
+        "vmStorageAccountContainerName" : "vhds",
+        "virtualNetworkName" : "MyVNET",
+        "addressPrefix" : "10.0.0.0/16",
+        "subnet1Name": "subnet-1",
+        "subnet2Name": "subnet-2",
+        "subnet1Prefix" : "10.0.0.0/24",
+        "subnet2Prefix" : "10.0.1.0/24",
+        "nicName" : "myVMNic",
+        "dnsName" : "[variables('subnet1Name')]",
+        "securityGroupName": "mongoNSG"
+      },
+		"resources": [
+    {
+        "apiVersion": "2015-05-01-preview",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "name": "[variables('securityGroupName')]",
+        "location": "[parameters('commonSettings').location]",
+        "properties": {
+            "securityRules": [
+                {
+                    "name": "SSH",
+                    "properties": {
+                        "description": "Allows SSH traffic",
+                        "protocol": "Tcp",
+                        "sourcePortRange": "22",
+                        "destinationPortRange": "22",
+                        "sourceAddressPrefix": "*",
+                        "destinationAddressPrefix": "*",
+                        "access": "Allow",
+                        "priority": 100,
+                        "direction": "Inbound"
+                    }
+                }
+            ]
+        }
+    },
+    {
+          "type": "Microsoft.Storage/storageAccounts",
+          "name": "[parameters('newStorageAccountName')]",
+          "apiVersion": "2015-05-01-preview",
+          "location": "[parameters('location')]",
+          "properties": {
+          "accountType": "[parameters('storageAccountType')]"
+       }
+    },
+
+     {
+        "type": "Microsoft.Compute/availabilitySets",
+         "name": "[parameters('availabilitySetName')]",
+         "apiVersion": "2015-05-01-preview",
+         "location": "[parameters('location')]",
+        "properties": {
+            "platformFaultDomainCount": "2"
+        }
+     },
+
+    {
+        "apiVersion": "2015-05-01-preview",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "name": "[concat(variables('publicIPAddressName'),copyIndex())]",
+        "location": "[parameters('location')]",
+        "copy": {
+           "name": "publicIPLoop",
+           "count": "[parameters('numberOfInstances')]"
+        },
+
+        "properties": {
+            "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+            "dnsSettings": {
+              "domainNameLabel": "[concat(variables('vmName'),copyIndex())]"
+            }
+        }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnet1Name')]",
+            "properties" : {
+                "addressPrefix": "[variables('subnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('subnet2Name')]",
+            "properties" : {
+                "addressPrefix": "[variables('subnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+        "apiVersion": "2015-05-01-preview",
+        "type": "Microsoft.Network/networkInterfaces",
+        "name": "[concat(variables('nicName'),copyIndex())]",
+        "location": "[parameters('location')]",
+        "copy": {
+           "name": "nicLoop",
+           "count": "[parameters('numberOfInstances')]"
+        },
+        "dependsOn": [
+            "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'),copyIndex())]",
+            "[concat('Microsoft.Network/networkSecurityGroups/', variables('securityGroupName'))]",
+            "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+        ],
+        "properties": {
+            "ipConfigurations": [
+            {
+                "name": "ipconfig1",
+                "properties": {
+                    "privateIPAllocationMethod": "Dynamic",
+                    "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(variables('publicIPAddressName'),  copyIndex()))]"
+                    },
+                    "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('securityGroupName'))]"
+                    },
+                    "subnet": {
+                        "id": "[variables('subnet1Ref')]"
+                    }
+                }
+            }
+            ]
+        }
+    },
+    {
+        "apiVersion": "2015-05-01-preview",
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "[concat(variables('vmName'),copyIndex())]",
+        "location": "[parameters('location')]",
+        "copy": {
+           "name": "vmLoop",
+           "count": "[parameters('numberOfInstances')]"
+        },
+        "dependsOn": [
+            "[concat('Microsoft.Storage/storageAccounts/', parameters('newStorageAccountName'))]",
+            "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'), copyIndex())]",
+            "[concat('Microsoft.Compute/availabilitySets/', parameters('availabilitySetName'))]"
+        ],
+        "properties": {
+          "availabilitySet": {
+                  "id": "[resourceId('Microsoft.Compute/availabilitySets', parameters('availabilitySetName'))]"
+            },
+            "hardwareProfile": {
+                "vmSize": "[parameters('vmSize')]"
+            },
+            "osProfile": {
+                "computername": "[concat(variables('vmName'),copyIndex())]",
+                "adminUsername": "[parameters('adminUsername')]",
+                "adminPassword": "[parameters('adminPassword')]"
+            },
+            "storageProfile": {
+              "imageReference": {
+                 "publisher": "[parameters('imagePublisher')]",
+                     "offer": "[parameters('imageOffer')]",
+                     "sku" : "[parameters('imageSKU')]",
+                     "version":"latest"
+                 },
+                 "osDisk" : {
+                     "name": "osdisk",
+                     "vhd": {
+                        "uri": "[concat('http://',parameters('newStorageAccountName'),'.blob.core.windows.net/vhds/','osdisk', copyIndex(), '.vhd')]"
+                      },
+                     "caching": "ReadWrite",
+                     "createOption": "FromImage"
+                 }
+            },
+            "networkProfile": {
+                "networkInterfaces" : [
+                {
+                    "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('nicName'),copyIndex()))]"
+                }
+                ]
+            }
+        }
+    },
+    {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('vmName'),copyIndex(),'/installMongoMMS')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[parameters('location')]",
+            "copy": {
+               "name": "extensionLoop",
+               "count": "[parameters('numberOfInstances')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyIndex())]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.2",
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/ivanfioravanti/azure-quickstart-templates/master/mongodb-on-ubuntu-with-mms/mongo-install-ubuntu.sh"
+                    ],
+                    "commandToExecute": "[concat('bash mongo-install-ubuntu.sh -g ', parameters('mmsGroupId'), ' -a ', parameters('mmsApiKey'), ' -d ', parameters('dataFolder'))]"
+                }
+            }
+        }
+    ]
+}

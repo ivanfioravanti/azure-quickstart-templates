@@ -1,0 +1,7 @@
+{
+  "itemDisplayName": "Install Mongo DB on a set of Ubuntu VMs using Custom Script Linux Extension and MongoDB MMS",
+  "description": "This template deploys Mongo DB with MongoDB MMS on a set of Ubuntu Virtual Machines. This template also deploys a Storage Account, Virtual Network, Public IP addresses and a Network Interface.",
+  "summary": "Install Mongo DB on a set of Ubuntu VMs using Custom Script Linux Extension and MongoDB MMS",
+  "githubUsername": "ivanfioravanti",
+  "dateUpdated": "2015-06-11"
+}
